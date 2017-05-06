@@ -14,37 +14,18 @@ $error = false;
 //check if form is submitted
 if (isset($_POST['create_project'])) {
     $project_name = mysqli_real_escape_string($dbc, $_POST['project_name']);
-    $project_description = mysqli_real_escape_string($dbc, $_POST['project_name']);
-    $minimum_budget = mysqli_real_escape_string($dbc, $_POST['project_name']);
-    $maximum_budget = mysqli_real_escape_string($dbc, $_POST['project_name']);
+    $project_description = mysqli_real_escape_string($dbc, $_POST['project_description']);
+    $minimum_budget = mysqli_real_escape_string($dbc, $_POST['minimum_budget']);
+    $maximum_budget = mysqli_real_escape_string($dbc, $_POST['maximum_budget']);
     $end_crowd_time = mysqli_real_escape_string($dbc, $_POST['end_crowd_time']);
     $end_project_time = mysqli_real_escape_string($dbc, $_POST['end_project_time']);
-
-    //name can contain only alpha characters and space
-//    if (!preg_match("/^[a-zA-Z ]+$/",$name)) {
-//        $error = true;
-//        $name_error = "Name must contain only alphabets and space";
-//    }
-//    if(!filter_var($email,FILTER_VALIDATE_EMAIL)) {
-//        $error = true;
-//        $email_error = "Please Enter Valid Email ID";
-//    }
-//    if(strlen($password) < 6) {
-//        $error = true;
-//        $password_error = "Password must be minimum of 6 characters";
-//    }
-//    if($password != $cpassword) {
-//        $error = true;
-//        $cpassword_error = "Password and Confirm Password doesn't match";
-//    }
-//    pid,uid,pname,pdescription,create_time,min_estimate,max_estimate,close_time,completion_time,status
 
     $tmp = mysqli_query($dbc, "select max(pid) as pid from Project");
     $row = $tmp->fetch_assoc();
     $pid = $row['pid'] + 1;
 
 //    $uid = $_GET["userid"];
-    $uid = 'xixika@gmail.com';
+    $uid = 'lulu@gmail.com';
     $create_time = date("Y-m-d H:i:s");
     $status = 'fund_processing';
     if (!$error) {

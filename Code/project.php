@@ -4,49 +4,63 @@ session_start();
 include_once 'connection.php';
 
 //$loginuser = $_SESSION['loginuser'];
-$uid = "xixika@gmail.com";
 $projectID = $_GET["projectID"];
+
+$sql = $dbc->prepare("SELECT * FROM Project WHERE pid='$projectID'");
+$sql -> execute();
+$sql -> bind_result($projid, $uid_project, $project_name, $description, $create_time, $minimum_budget, $maximum_budget, $fundingendtime, $completetime, $project_status);
+$sql->fetch();
+$sql->close();
+
+$sql = $dbc->prepare("SELECT sum(amount) as amount  FROM Pledge WHERE pid='$projectID'");
+$sql -> execute();
+$sql -> bind_result($fond_received);
+$sql->fetch();
+$sql->close();
+
+$uid = "xixika@gmail.com";  //当前登录用户的id
+
+
 $current_time = date("Y-m-d H:i:s");
 date_default_timezone_set("America/New_York");
 
-
-if (isset($_POST['update_content'])) {
+if (isset($_POST['update_content'])) { //only project owner can update
     $error = false;
-//    $update_content = $_POST['update_content'];
     $update_content = mysqli_real_escape_string($dbc, $_POST['update_content']);
-    if (!$error) {
-        if(mysqli_query($dbc, "INSERT INTO Updates VALUES('".$projectID."', '".$current_time."', '".$update_content."','','','' )")) {
-        }
-        else {
-            echo "can not insert into database";
-        }
+    if ($project_status == "fund_processing") {
+        echo '<script>';
+        echo 'alert("you can not update while project pending")';
+        echo '</script>';
+    } elseif  ($uid == $uid_project) {
+        if(mysqli_query($dbc, "INSERT INTO Updates VALUES('".$projectID."', '".$current_time."', '".$update_content."','','','' )")) {}
+    } else {
+        echo '<script>';
+        echo 'alert("you are not the owner of the project, can not update")';
+        echo '</script>';
     }
     unset($_POST['update_content']);
 }
 
 
-
-if(isset($_POST['like_reason'])) {
-    $like_reason = mysqli_real_escape_string($dbc, $_POST['like_reason']);
-    if (mysqli_query($dbc, "INSERT INTO Like_Reason VALUES('" . $uid . "', '" . $projectID . "','" . $like_reason . "')")) {
-        if (mysqli_query($dbc, "INSERT INTO Log_information VALUES('" . $uid . "', '" . $like_reason . "')")) {
-        }
-    }
-
-}
-
 if(isset($_POST['comment_content'])){
     $error = false;
     $comment_content = mysqli_real_escape_string($dbc, $_POST['comment_content']);
     echo $_POST['comment_content'];
-    if (!$error) {
+    if ($project_status == "fund_processing") {
+        echo '<script>';
+        echo 'alert("you can not comment while project pending")';
+        echo '</script>';
+    }
+    elseif ($uid != $uid_project) {
         if(mysqli_query($dbc, "INSERT INTO Comment VALUES('".$uid."', '".$projectID."', '".$current_time."', '".$comment_content."')")) {
             if (mysqli_query($dbc, "INSERT INTO Log_information VALUES('" . $uid . "', '" . $projectID . "')")) {
             }
         }
-        else {
-            echo "can not insert into database";
-        }
+    }
+    else {
+        echo '<script>';
+        echo 'alert("you can not comment to yourself!")';
+        echo '</script>';
     }
     unset($_POST['comment_content']);
 }
@@ -54,36 +68,56 @@ if(isset($_POST['comment_content'])){
 
 if(isset($_POST['pledge_amount'])){
     $error = false;
-//    $pledge_amount = $_POST['pledge_amount'];
     $pledge_amount = mysqli_real_escape_string($dbc, $_POST['pledge_amount']);
-    $pledge_status = "pending";
-    if (!$error) {
-        if(mysqli_query($dbc, "INSERT INTO Pledge VALUES('".$uid."', '".$projectID."', '".$current_time."', '".$pledge_amount."', '".$pledge_status."')")) {
-        }
-        else {
-            echo "can not insert into database";
+    $pledge_status = 'pending';
+
+    if ($uid == $uid_project) {
+        echo '<script>';
+        echo 'alert("you can not pledge to yourself!")';
+        echo '</script>';
+    } elseif((int)$pledge_amount + (int)$fond_received > (int)$maximum_budget) {
+        echo '<script>';
+        echo 'alert("you can not pledge more money than max needed!")';
+        echo '</script>';
+    } elseif(mysqli_query($dbc, "INSERT INTO Pledge VALUES('".$uid."', '".$projectID."', '".$current_time."', '".$pledge_amount."', '".$pledge_status."')")) {
+        if ((int)$pledge_amount + (int)$fond_received == (int)$maximum_budget) {
+            mysqli_query($dbc, "Update Project set status = 'fund_success' where pid='$projectID'");
         }
     }
     unset($_POST['pledge_amount']);
 }
 
+$sql = $dbc->prepare("SELECT * FROM Project WHERE pid='$projectID'");
+$sql -> execute();
+$sql -> bind_result($projid, $uid_project, $project_name, $description, $create_time, $minimum_budget, $maximum_budget, $fundingendtime, $completetime, $project_status);
+$sql->fetch();
+$sql->close();
+
+$sql = $dbc->prepare("SELECT sum(amount) as amount  FROM Pledge WHERE pid='$projectID'");
+$sql -> execute();
+$sql -> bind_result($fond_received);
+$sql->fetch();
+$sql->close();
+
 
 if(isset($_POST['rate_star'])){
-    echo $a;
     $error = false;
     $rate_star = $_POST['rate_star'];
-    if (!$error) {
-        if(mysqli_query($dbc, "INSERT INTO Rate VALUES('".$uid."', '".$projectID."', '".$rate_star."')")) {
-        }
-        else {
-            echo "can not insert into database";
-        }
+    if ($project_status == "fund_processing") {
+        echo "you can not update while project pending";
+    }
+    elseif ($uid != $uid_project) {
+        if(mysqli_query($dbc, "INSERT INTO Rate VALUES('".$uid."', '".$projectID."', '".$rate_star."')")) {}
+    }
+    else {
+        echo '<script>';
+        echo 'alert("you can not rate to yourself!")';
+        echo '</script>';
     }
     unset($_POST['rate_star']);
 }
 
 if(isset($_POST['like_project'])) {
-
     $error = false;
     if (!$error) {
         if (mysqli_query($dbc, "INSERT INTO Likes VALUES('" . $uid . "', '" . $projectID . "')")) {
@@ -94,17 +128,22 @@ if(isset($_POST['like_project'])) {
     }
 }
 
-$sql = $dbc->prepare("SELECT * FROM Project WHERE pid='$projectID'");
-$sql -> execute();
-$sql -> bind_result($projid, $uid, $project_name, $description, $create_time, $minimum_budget, $maximum_budget, $fundingendtime, $completetime, $status);
-$sql->fetch();
-$sql->close();
+if(isset($_POST['like_reason'])) {
+    $like_reason = mysqli_real_escape_string($dbc, $_POST['like_reason']);
+    if(mysqli_query($dbc, "INSERT INTO like_Reason VALUES('" . $uid . "', '" . $projectID . "','" . $like_reason . "')")) {
+        if (mysqli_query($dbc, "INSERT INTO Log_information VALUES('" . $uid . "', '" . $like_reason . "')")) {
+        }
+    }
+    else {
+    echo "can not insert";
+    }
+    unset($_POST['like_reason']);
 
-$sql = $dbc->prepare("SELECT sum(amount) as amount  FROM Pledge WHERE pid='$projectID'");
-$sql -> execute();
-$sql -> bind_result($fond_received);
-$sql->fetch();
-$sql->close();
+}
+
+
+
+
 
 $sql = $dbc->prepare("SELECT sum(star) as stars, count(*) as nums FROM Rate WHERE pid = '$projectID'");
 $sql -> execute();
@@ -317,9 +356,9 @@ $sql->close();
         $projectID = $_GET["projectID"];
         echo "<div><h1 class=\"center\">".$project_name. "</h1></div>";
         echo "<div class=\"center lead\">".$description. "</div>";
-        $sql = $dbc->prepare("SELECT * FROM User WHERE uid='$uid'");
+        $sql = $dbc->prepare("SELECT * FROM User WHERE uid='$uid_project'");
         $sql -> execute();
-        $sql -> bind_result($uid, $uname,$upass,$uphone, $ucredit_card,$hometown,$interests);
+        $sql -> bind_result($uid_project, $uname,$upass,$uphone, $ucredit_card,$hometown,$interests);
         $sql->fetch();
         $sql->close();
         $sql = $dbc->prepare("SELECT ptag FROM Tag WHERE pid = '$projectID'");
@@ -341,7 +380,7 @@ $sql->close();
     <hr>
         <div class="col-md-6 marginTop">
             <div class="center">
-                <h4>Project Status:</h4><h4 class="projstatus"><?php echo $status;?></h4><hr>
+                <h4>Project Status:</h4><h4 class="projstatus"><?php echo $project_status;?></h4><hr>
             </div>
             <ul class = "list-group">
                 <?php ?>
@@ -362,9 +401,9 @@ $sql->close();
         </div>
     <div class="col-md-6 marginTop center">
     <h4><span class="glyphicon glyphicon-user"></span> Project Owner</h4>
-        <?php echo "<a href='profile.php?userid=$uid' class ='link'>";?>
-        <h4><?php echo $uname;?><br/></h4></a>
-        <h5><span class="glyphicon glyphicon-envelope"></span> Email: <?php echo $uid;?></h5>
+        <?php echo "<a href='profile.php?userid=$uid_project' class ='link'>";?>
+        <h4><?php echo $uid_project;?><br/></h4></a>
+        <h5><span class="glyphicon glyphicon-envelope"></span> Email: <?php echo $uid_project;?></h5>
         <h5><span class="glyphicon glyphicon-cutlery"></span> Interests: <?php echo $interests;?></h5><hr>
         <h5>Post Time: <?php echo $create_time;?></h5>
         <h5><?php echo is_null($create_time)?"Funding End Time:$fundingendtime":
@@ -406,7 +445,7 @@ $sql->close();
                             <div class="col-md-12 marginTop">
                                 <p class="form-group marginmiddle">
                                     <span class="glyphicon glyphicon-usd"></span>
-                                    <input class="form-control" name="pledge_amount" type="number" placeholder="Amount" min="11"/>
+                                    <input class="form-control" name="pledge_amount" type="number" placeholder="Amount" min="1"/>
                             </div>
                         </div>
                     </div>
@@ -495,15 +534,13 @@ $sql->close();
                                 <?php
                                     $sql2 = "select * From Comment WHERE pid = $projectID order by ctime DESC ";
                                     $result = $dbc -> query($sql2); $i = 0;
+                                    $user_id = array();
+                                    $comment_from_user = array();
                                     while ($row = $result -> fetch_assoc()) {
-                                        $comment_from_user[++$i] = $row["content"];
+                                        echo $row["uid"]. '   ';
+                                        echo $row["content"]. '<br>';
                                     }
-                                    $result -> free();
-                                    if(isset($comment_from_user)) {
-                                    foreach ($comment_from_user as $value) {
-                                        echo $value . '<br>';
-                                    }
-                                }
+//
                                 ?>
 
                                 <br/>
@@ -568,7 +605,6 @@ $sql->close();
 
                             <div role="tabpanel" class="tab-pane fade" id="Section4">
 
-
                                 <?php
                                 $sql2 = "select contents From Like_Reason WHERE pid = $projectID";
                                 $result = $dbc -> query($sql2); $i = 0;
@@ -576,7 +612,7 @@ $sql->close();
                                     $comment_from_user[++$i] = $row["contents"];
                                 }
                                 $result -> free();
-                                if(isset($comment_from_user)) {
+                                if(count($comment_from_user) > 0) {
                                     foreach ($comment_from_user as $value) {
                                         echo $value . '<br>';
                                     }
